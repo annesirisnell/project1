@@ -19,20 +19,26 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+### Anne Siri Snell, as223795
 
 #### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.
+I've chosen the two datasets "hate_crimes" and "partisan_lean_state" from the fivethirtyeight package. My major is government and I chose to find data in this package because it contains a lot of interesting political subjects. I'm especially interested in the Cook Partisan Voting Index (PVI) from the "partisan_lean_state" and the median income from "hate_crimes" to see if there is a difference in the PVI (as a proxy for political polarization) across different incomes. PVI scores are a measurement of how democratic or republican a state is, meaning that a lower PVI score indicates that the voters in the state are more split between the two parties. I expect that there is less political polarization the higher the median income in the state is. My merging variable is state.
 
 ```{R}
-# read your datasets in here, e.g., with read_csv()
+
+library(fivethirtyeight)
+
+library(tidyverse)
+
+head(hate_crimes)
+head(partisan_lean_state)
 
 ```
 
 #### Tidying: Reshaping
 
-If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
+My datasets are already tidy, which means I will wait till the wrangling section. 
 
 ```{R}
 # your tidying code (if applicable; can also wait until wrangling section)
@@ -42,49 +48,83 @@ If your datasets are tidy already, demonstrate that you can reshape data with pi
 #### Joining/Merging
 
 ```{R}
-# your joining code
+mydataset <- partisan_lean_state %>% full_join(hate_crimes, by="state")
+head(mydataset)
 
-# your joining code
 ```
 
-Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+The partisan_lean_state data have 50 rows/distinct IDs for the 50 states and 3 variables in total. The hate_crimes dataset have 51 rows/distinct IDs, because it includes the District of Columbia as a state. It contains 13 variables in total. I chose a full join, even though I know that there isn't any data on DC in the partisan_lean_state dataset. This means that DC will get NAs for the two variables that the partisan_lean_state adds. I will to keep it, because I might want to do some visualizations only with the data the from hate_crimes and then I might as well keep DC for more data. The joined data contains 51 rows and 15 columns.  
+
 
 ####  Wrangling
-
-```{R}
-# your wrangling code
-
-# your wrangling code
-
-# your wrangling code
+```{r}
+mydataset %>% filter(str_detect(pvi_party, "R"))
+mydataset %>% select(state, pvi_party, share_vote_trump)
+mydataset %>% arrange(desc(pvi_amount))
+metro_to_trump <- mydataset %>% group_by(state) %>% mutate(metro_to_trump=share_pop_metro/share_vote_trump)
 ```
 
-Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+For this part of the wrangling, I used a lot of different function to explore the dataset. First I saw only the republican states of the dataset, to look for any patterns. Then I filtered the dataset to only look at the variables that I'm most interested in. Then I arranged the dataset descending after the PVI score. The last two lines of code makes a new variable called metro_to_trump, which shows the relationship between share of urban population and share of Trump votes. 
+
+```{r}
+mydataset %>% summarise_if(is.numeric, na.rm = TRUE, sd)
+mydataset %>% summarise_if(is.numeric, na.rm = TRUE, mean)
+mydataset %>% summarise_if(is.numeric, na.rm = TRUE, median)
+mydataset %>% summarise_if(is.numeric, na.rm = TRUE, min)
+mydataset %>% summarise_if(is.numeric, na.rm = TRUE, max)
+```
+
+For this part of the wrangling, I found the standard deviation, mean, median, minimum and maximum values for the numeric variables in my dataset. 
+
+```{r}
+mydataset %>% group_by(pvi_party) %>% summarise_if(is.numeric, na.rm = TRUE, mean)
+```
+
+This table shows the average values of the different variables grouped by party. One thing that are interesting for my analysis is that the PVI score is higher for republican states than for democratic states, which speaks against my expectations. But I will investigate it in greater detail later.  
+
+```{R}
+library(kableExtra)
+knitr::kable(mydataset %>% group_by(pvi_party) %>% summarize(n()), align = "lccrr")
+
+```
+
+For this last part of the wrangling, I did a table with the kable package. It shows the number of democratic and republican states in the dataset respectively. 
 
 
 #### Visualizing
 
 ```{R}
-# your plot 1
+library(ggplot2)
+ggplot(mydataset, aes(x=pvi_amount)) + 
+  geom_histogram(bins=15, color="black", fill="white") +
+  geom_vline(xintercept=16.94, linetype="dashed", color = "red")+
+  ggtitle("PVI Amount")+xlab("PVI score")+ylab("Count")
 ```
 
-Your discussion of plot 1
+My plot 1 is a visual presentation of the variable PVI score. I shows a histogram of the distribution of the variable and I added a red dotted line to show the average PVI score across states. PVI score is a measurement of how strongly a state lean towards the Republican or Democratic party, so 0 is the highest degree of polarization. The histogram shows that the PVI scores are generally either relatively low or between 10 and 30. 
 
 ```{R}
-# your plot 2
+ggplot(mydataset, aes(median_house_inc, pvi_amount)) + geom_point(aes(color=pvi_party)) +
+  scale_color_manual(values = c("R" = "red", "D" = "blue")) +
+  geom_smooth(method="lm") +
+  ggtitle("Income vs. polarization")+xlab("Median income")+ylab("PVI score")
 ```
 
-Your discussion of plot 2
+Plot 2 is a scatterplot to show the linear relationship between income and PVI score/polarization. I expected that the higher income a state have, the lower degree of polarization. There is a small tendency towards that relationship, but it is definitely not a strong relationship. As an extra feature, I added the party color to the dots to see if there is any pattern within the two different parties. It doesn't seem like it though. 
 
 ```{R}
-# your plot 3
+ggplot(mydataset, aes(x = pvi_party, fill=pvi_party))+
+  geom_bar(aes(y=pvi_amount), stat="summary", fun=mean)+
+   scale_fill_manual(values = c("R" = "red", "D" = "blue")) +
+  coord_flip()+
+  theme(legend.position="none")
 ```
 
-Your discussion of plot 3
+For plot 3, I wanted to investigate whether there is a difference between the PVI scores, and thus the degree of political polarization. This graph shows that republican states have a higher average PVI score than democratic states does. That means, that generally speaking, republican states are less polarized then democratic states (because 0 is the highest degree of polarization). I tried to remove the NA-bar, with both na-rm= TRUE and na.omit, but none of them worked.  
 
 #### Concluding Remarks
 
-If any!
+I didn't find the relationship between PVI score and income as I expected, even though the graph shows a small tendency in that direction. But I found another interesting fact that might be worth to look into more detail with, namely that republican states seems to be less split than democratic states. 
 
 
 
